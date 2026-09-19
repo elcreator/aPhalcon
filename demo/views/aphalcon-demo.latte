@@ -1,0 +1,35 @@
+{* Rendered by a Phalcon route through $app->cms->respond('aphalcon-demo', [...]).
+   Pure Latte: no document behind it, so no EVO tags and no document fields -
+   only what the route passed in, plus the DI through {phalcon()}. *}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>{$title}</title>
+    <style>
+        body { font: 16px/1.5 system-ui, sans-serif; max-width: 48rem; margin: 3rem auto; padding: 0 1rem; color: #222; }
+        code { background: #f3f3f3; padding: .1em .3em; }
+        li { margin: .25rem 0; }
+    </style>
+</head>
+<body>
+<h1>{$title}</h1>
+<p>{phalcon('greeter')->greet('visitor')}</p>
+<p>
+    This page is a <strong>Phalcon Micro route</strong> inside Evolution CMS. The rows below come from
+    <code>Elcreator\aPhalcon\Demo\Document</code>, a <code>Phalcon\Mvc\Model</code> over the site's own
+    <code>site_content</code> table, on the DI's <code>db</code> adapter - opened with the CMS's credentials.
+</p>
+<ul n:if="count($documents)">
+    <li n:foreach="$documents as $document">
+        <a href="{phalcon('cms')->url($document->id)}">{$document->pagetitle}</a>
+        <small>#{$document->id} - <a href="{phalcon('cms')->setting('site_url')}app/documents/{$document->id}">route</a></small>
+    </li>
+</ul>
+<p n:if="!count($documents)"><em>No documents.</em></p>
+<p>
+    <a href="{phalcon('cms')->setting('site_url')}app/documents.json">documents.json</a> is the same query as an array return.
+    <a href="{phalcon('cms')->url((int) phalcon('cms')->setting('site_start'))}">Site start</a>.
+</p>
+</body>
+</html>

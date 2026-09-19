@@ -1,0 +1,7 @@
+/.claude
+/.idea
+/tmp
+/vendor
+/dist/
+/composer.lock
+/.phpunit.cache/

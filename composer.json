@@ -1,0 +1,43 @@
+{
+  "name": "elcreator/aphalcon",
+  "license": "GPL-3.0-or-later",
+  "description": "Phalcon inside Evolution CMS: one DI on the site's database, Phalcon services in Latte templates, and Phalcon routes that render CMS views",
+  "type": "evolutioncms-plugin",
+  "keywords": [
+    "evo",
+    "evocms",
+    "evolution",
+    "evolution-cms",
+    "phalcon",
+    "latte"
+  ],
+  "require": {
+    "php": "^8.3",
+    "ext-phalcon": "^5.0",
+    "evolution-cms/evolution": "^3.5.9",
+    "elcreator/alattex": "^0.4"
+  },
+  "require-dev": {
+    "pestphp/pest": "^4.0"
+  },
+  "autoload": {
+    "psr-4": {
+      "Elcreator\\aPhalcon\\": "src/"
+    }
+  },
+  "scripts": {
+    "test": "pest --no-coverage"
+  },
+  "extra": {
+    "laravel": {
+      "providers": [
+        "Elcreator\\aPhalcon\\aPhalconServiceProvider"
+      ]
+    }
+  },
+  "config": {
+    "allow-plugins": {
+      "pestphp/pest-plugin": true
+    }
+  }
+}
