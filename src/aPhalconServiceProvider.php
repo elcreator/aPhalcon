@@ -5,10 +5,13 @@ namespace Elcreator\aPhalcon;
 use Elcreator\aLatteX\LattexEngine;
 use Elcreator\aPhalcon\Console\DemoInstallCommand;
 use Elcreator\aPhalcon\Console\DemoRemoveCommand;
+use Elcreator\aPhalcon\Frontend\Documents;
+use Elcreator\aPhalcon\Frontend\Frontend;
 use Elcreator\aPhalcon\Http\Bridge;
 use Elcreator\aPhalcon\Latte\PhalconExtension;
 use EvolutionCMS\ServiceProvider;
 use Illuminate\Contracts\View\Factory as ViewFactory;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Phalcon\Di\DiInterface;
 
@@ -27,7 +30,26 @@ class aPhalconServiceProvider extends ServiceProvider
                 'cms' => fn () => $this->cms(),
                 'evo' => fn () => $this->core(),
                 'tablePrefix' => fn () => DbConfig::prefix($this->connection()),
+                'site' => fn () => $app->make(Frontend::class),
             ]);
+        });
+
+        // The front controller: the document tree through Phalcon's db, and
+        // the same Cms the routes use. Built on first use, like the DI.
+        $this->app->singleton(Frontend::class, function ($app) {
+            $di = $app->make(DiInterface::class);
+            $cms = $di->get('cms');
+            $dbService = (string) ($app['config']->get('aphalcon.db.service') ?: 'db');
+
+            return new Frontend(
+                new Documents(
+                    $di->get($dbService),
+                    DbConfig::prefix($this->connection()),
+                    fn (string $name, mixed $default = null) => $cms->setting($name, $default),
+                ),
+                $cms,
+                (bool) $app['config']->get('aphalcon.frontend.fallback', true),
+            );
         });
         $this->app->alias(DiInterface::class, 'phalcon.di');
 
@@ -43,6 +65,7 @@ class aPhalconServiceProvider extends ServiceProvider
         ], 'config');
 
         $this->registerRoutes();
+        $this->registerFrontend();
         $this->registerLatteFunction();
         $this->registerCommands();
     }
@@ -57,11 +80,7 @@ class aPhalconServiceProvider extends ServiceProvider
         $routes = (array) config('aphalcon.routes', []);
         $prefix = trim((string) ($routes['prefix'] ?? ''), '/');
 
-        if ($prefix === '' || !$this->app->bound('router')) {
-            return;
-        }
-
-        if (method_exists($this->app, 'isFrontend') && !$this->app->isFrontend() && !$this->app->runningInConsole()) {
+        if ($prefix === '' || !$this->routable()) {
             return;
         }
 
@@ -73,6 +92,39 @@ class aPhalconServiceProvider extends ServiceProvider
             })
             ->where('aphalcon_path', '.*')
             ->name('aphalcon');
+    }
+
+    /**
+     * With frontend.takeover on, every other path is Phalcon's: a catch-all
+     * behind the mount (routes match in order of registration, so /<prefix>/
+     * keeps winning) and in front of the CMS's parser fallback. A
+     * NotFoundHttpException out of the controller is what the core answers by
+     * running its parser, which is how 'fallback' hands a document back.
+     */
+    private function registerFrontend(): void
+    {
+        if (!(bool) config('aphalcon.frontend.takeover', false) || !$this->routable()) {
+            return;
+        }
+
+        $middleware = (array) (config('aphalcon.routes.middleware') ?? ['web']);
+
+        Route::middleware($middleware)
+            ->any('{aphalcon_site_path?}', static function (Request $request, string $aphalcon_site_path = '') {
+                return app(Frontend::class)->handle($aphalcon_site_path, $request->query());
+            })
+            ->where('aphalcon_site_path', '.*')
+            ->name('aphalcon.frontend');
+    }
+
+    /** Whether this request is one the front-end routes should exist for. */
+    private function routable(): bool
+    {
+        if (!$this->app->bound('router')) {
+            return false;
+        }
+
+        return !method_exists($this->app, 'isFrontend') || $this->app->isFrontend() || $this->app->runningInConsole();
     }
 
     /**

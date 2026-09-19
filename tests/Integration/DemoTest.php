@@ -36,7 +36,8 @@ function demoDi(): DiInterface
             return 'rendered ' . $alias . ' with ' . implode(',', array_keys($data));
         }
         if ($engine === null) {
-            $engine = new LattexEngine([]);
+            // The view directory is a view path, so {extends 'x.latte'} resolves.
+            $engine = new LattexEngine([$views]);
             $engine->addExtension(new PhalconExtension(static fn () => $di));
         }
 
@@ -87,6 +88,10 @@ test('the demo routes render the shipped CMS view through the bridge', function 
     expect($index->getContent())->toContain('Phalcon route, CMS view');
     if (class_exists(\Latte\Engine::class)) {
         expect($index->getContent())->toContain('Hello, visitor - from Phalcon, on Demo Site');
+        expect($index->getContent())->toContain('class="aph aph-base aph-section aph-route"');
+        expect($index->getContent())->toContain('<title>Phalcon route, CMS view - Demo Site</title>');
+        expect($index->getContent())->toContain('<h2>Latest pages</h2>');
+        expect($index->getContent())->toContain('Layout <code>aphalcon-base.latte</code>');
         expect($index->getContent())->toContain('href="/index.php?id=2">About</a>');
         expect($index->getContent())->toContain('http://demo.test/app/documents/1');
         expect($index->getContent())->not->toContain('Hidden');
@@ -116,10 +121,11 @@ test('the demo page template renders a document with Phalcon services and no par
     }
 
     $di = demoDi();
-    $engine = new LattexEngine([]);
+    $views = dirname(__DIR__, 2) . '/demo/views';
+    $engine = new LattexEngine([$views]);
     $engine->addExtension(new PhalconExtension(static fn () => $di));
 
-    $html = $engine->renderView(dirname(__DIR__, 2) . '/demo/views/aphalcon-demo-page.latte', [
+    $html = $engine->renderView($views . '/aphalcon-demo-page.latte', [
         'documentObject' => [
             'id' => 2,
             'pagetitle' => 'About',
@@ -127,8 +133,18 @@ test('the demo page template renders a document with Phalcon services and no par
         ],
     ]);
 
-    expect($html)->toContain('<title>About</title>');
+    expect($html)->toContain('<title>About - Demo Site</title>');
     expect($html)->toContain('Hello, About - from Phalcon, on Demo Site');
+    // The three levels, each leaving its mark: the layout's footer, the
+    // section's crumbs with {include parent}, the root's body class.
+    expect($html)->toContain('class="aph aph-base aph-section aph-document"');
+    expect($html)->toContain('href="/index.php?id=1">Demo Site</a>');
+    expect($html)->toMatch('~Demo Site</a>\s*/ <span>About</span>~');
+    expect($html)->toContain('Layout <code>aphalcon-base.latte</code>');
+    expect($html)->toContain('Filled by the document root');
+    // The section's aside, from the model: the deleted row stays out.
+    expect($html)->toContain('<h2>Latest pages</h2>');
+    expect($html)->not->toContain('Hidden');
     expect($html)->toContain('<p>Body</p>');
     expect($html)->toContain('href="/index.php?id=2">About</a>');
     expect($html)->toContain('http://demo.test/app/');

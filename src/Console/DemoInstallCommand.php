@@ -18,7 +18,7 @@ class DemoInstallCommand extends Command
     public function handle(): int
     {
         if (!$this->option('force') && $this->input->isInteractive()) {
-            $this->line('This writes one template, one document and two view files into this site,');
+            $this->line('This writes one template, one document and four view files into this site,');
             $this->line('and core/custom/config/aphalcon.php and alattex.php if they do not exist.');
 
             if (!$this->confirm('Install the aPhalcon demo?', true)) {

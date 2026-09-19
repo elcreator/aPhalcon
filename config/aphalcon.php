@@ -43,6 +43,20 @@ return [
         'handlers' => [],
     ],
 
+    'frontend' => [
+        // true: Phalcon serves the whole front end. Every path outside
+        // routes.prefix is resolved to a document by alias (or ?id=), and
+        // the document is rendered from its template's views/<alias>.latte
+        // with the content table's fields as variables - the CMS parser never
+        // runs. The manager is its own entry point and is untouched.
+        'takeover' => false,
+
+        // With takeover on: a document whose template has no view file, and
+        // a miss with no renderable error_page, are handed back to the CMS
+        // parser (true) or answered by Phalcon with an error (false).
+        'fallback' => true,
+    ],
+
     'latte' => [
         // Name of the Latte function that reaches the DI from a template:
         // {phalcon('service')} or {phalcon()} for the container itself.

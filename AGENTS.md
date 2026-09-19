@@ -23,7 +23,7 @@ route, and aLatteX's `LattexEngine::addExtension()` hook.
 composer.json              Package manifest (type: evolutioncms-plugin); requires ext-phalcon and elcreator/alattex
 config/aphalcon.php        Defaults; published to core/custom/config/aphalcon.php
 demo/
-  views/                   The two .latte files the demo installs into views/
+  views/                   The four .latte files the demo installs into views/: base -> section -> two roots
   config/                  The two config files it writes into core/custom/config/ when absent
 src/
   aPhalconServiceProvider.php  Binds the DI and the Bridge, mounts the route, attaches the Latte function
@@ -33,6 +33,8 @@ src/
   Http/Bridge.php              Builds the Micro/Application and turns a path into a Laravel response
   Http/ResponseConverter.php   Phalcon Response | string | array | echo -> Symfony/Laravel response
   Latte/PhalconExtension.php   The {phalcon()} Latte function
+  Frontend/Documents.php       site_content / site_templates / TVs through Phalcon's db: resolve a path, find, tvs, path
+  Frontend/Frontend.php        The front controller (frontend.takeover) and the DI's 'site' service
   Console/                     DemoInstallCommand, DemoRemoveCommand (console only)
   Demo/                        The demo's provider, model, repository, routes and seeder
 ci/                        Docker toolchain shared with the sibling plugins (see ci/README.md)
@@ -57,6 +59,21 @@ Laravel router (Core::processRoutes)
 The route is registered from the provider's `boot()`. The core's parser
 fallback is registered earlier, in `RoutingServiceProvider::register()`, and
 that is fine: Laravel matches fallback routes last whatever the order.
+
+### Request path with `frontend.takeover`
+
+```
+Laravel router
+  → route "aphalcon" (/<prefix>/...)            registered first, still wins
+  → route "aphalcon.frontend" ({path?} = .*)    Frontend::handle(path, query)
+      → Documents::resolve() → Frontend::render() → Cms::view(templatealias, fields + TVs)
+      → NotFoundHttpException when 'fallback' hands the request back
+  → Core::processRoutes() catches NotFound → executeParser()   (the CMS renders it)
+```
+
+The manager never enters this: `manager/index.php` is its own entry point and
+`isFrontend()` is false there, so neither route is registered. `assets/` and
+other real files are served by the web server before PHP.
 
 ### Render path for `{phalcon()}` on a page
 
@@ -122,6 +139,15 @@ container, so the unit tests construct it without a CMS.
   it just before dispatch.
 - **Package providers come from `core/custom/config/app/providers/`**, written
   by `package:discover`. `ci/smoke.sh` checks the file is there.
+- **A Symfony response returned from a Micro handler is `Stringable`.** Its
+  `__toString()` is the whole HTTP message, so `ResponseConverter` checks for
+  `SymfonyResponse` before the string branch and passes it through - that is
+  what `$app->site->document()` returns.
+- **`fallback` throws from inside a route too.** A route that calls
+  `$app->site->document($id)` for a document the front controller cannot
+  render sees the same `NotFoundHttpException`, and the CMS parser then
+  answers the *route's* path, which is a miss there. Check `viewFor()` first
+  when a route must not fall through.
 
 ---
 
@@ -137,6 +163,7 @@ container, so the unit tests construct it without a CMS.
 | Change what `Cms` offers a handler | `src/Cms.php` (and `CmsTest`) |
 | Add a config key | `config/aphalcon.php`, then wherever it is read; document it in README |
 | Change the demo | `src/Demo/*`, `demo/views/*`, `demo/config/*`; `DemoTest` pins the output |
+| Change how a path finds a document, or what a page gets as variables | `Frontend/Documents.php` (`resolve()`, `tvs()`), `Frontend/Frontend.php` (`render()`); `FrontendTest` |
 
 ---
 
@@ -167,5 +194,5 @@ Manual checks after a change to the bridge or the extension:
 
 1. `/app/` renders `views/aphalcon-demo.latte` with rows from the model.
 2. `/app/documents.json` is JSON; `/app/documents/999999` is a 404 with a body.
-3. `/aphalcon-demo.html` shows the greeting and the model rows, and `{{site_name}}` is printed as text.
+3. `/demo` (with takeover) or `/demo.html` shows the greeting and the model rows, and `{{site_name}}` is printed as text.
 4. Remove `core/custom/config/aphalcon.php`: `/app/` is a 404 from Phalcon, the page still renders (no `greeter` → Latte error in the event log, as with any missing service).

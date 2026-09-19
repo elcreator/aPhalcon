@@ -15,4 +15,12 @@ return [
             Elcreator\aPhalcon\Demo\DemoRoutes::class,
         ],
     ],
+    'frontend' => [
+        // Phalcon serves the front end: /aphalcon-demo.html (or ?id=) is
+        // resolved and rendered by the front controller, and every page with
+        // a .latte template is too. A page whose template lives in the
+        // database - the stock start page - is handed back to the CMS parser.
+        'takeover' => true,
+        'fallback' => true,
+    ],
 ];

@@ -71,11 +71,14 @@ final class Cms
     /**
      * A document's URL, spelled the way the site spells them.
      *
+     * The id may be a string: the CMS connection stringifies fetches, so a
+     * Phalcon model over its tables carries '2', not 2.
+     *
      * @param array<string, mixed> $args query parameters
      */
-    public function url(int $id, array $args = []): string
+    public function url(int|string $id, array $args = []): string
     {
-        return (string) $this->evo()->makeUrl($id, '', $args === [] ? '' : http_build_query($args));
+        return (string) $this->evo()->makeUrl((int) $id, '', $args === [] ? '' : http_build_query($args));
     }
 
     /** A system setting. */

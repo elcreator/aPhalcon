@@ -64,3 +64,12 @@ test('an untouched shared response changes nothing', function (): void {
 
     expect($response->getStatusCode())->toBe(200);
 });
+
+test('a Laravel response is passed through as it is', function (): void {
+    $given = new \Illuminate\Http\Response('page', 201, ['X-Given' => 'yes']);
+
+    $response = (new ResponseConverter())->convert($given, '', null);
+
+    expect($response)->toBe($given);
+    expect($response->getContent())->toBe('page');
+});

@@ -1,0 +1,45 @@
+{*
+   aphalcon-base.latte - the demo's layout, and the grandparent of the chain.
+
+   Never rendered on its own: no template row carries this alias, so the CMS
+   does not serve it, and no route names it. It is what aphalcon-section.latte
+   extends, and everything a page or a route shows sits inside its blocks.
+
+   Pure Latte, no document behind it necessarily: a Phalcon route renders the
+   same chain with no $pagetitle at all, so the title block is given one.
+*}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>{block title}{$title ?? $pagetitle ?? 'aPhalcon'}{/block} - {phalcon('cms')->setting('site_name')}</title>
+    <style>
+        body { font: 16px/1.5 system-ui, sans-serif; max-width: 56rem; margin: 2rem auto; padding: 0 1rem; color: #222; }
+        code { background: #f3f3f3; padding: .1em .3em; }
+        .aph-crumbs { color: #777; font-size: .9rem; }
+        .aph-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 2rem; }
+        .aph-aside { border-left: 3px solid #eee; padding-left: 1rem; }
+        .aph-footer { margin-top: 3rem; color: #777; font-size: .85rem; border-top: 1px solid #eee; padding-top: 1rem; }
+        li { margin: .25rem 0; }
+    </style>
+</head>
+<body class="aph {block bodyClass}aph-base{/block}">
+<p class="aph-crumbs">
+    {block crumbs}<a href="{phalcon('cms')->url((int) phalcon('cms')->setting('site_start'))}">{phalcon('cms')->setting('site_name')}</a>{/block}
+</p>
+
+{block content}{/block}
+
+<p class="aph-footer">
+    {block footer}
+        Layout <code>aphalcon-base.latte</code>, rendered by aLatteX with <code>{='{phalcon()}'}</code> from aPhalcon.
+        {var $di = phalcon()}
+        DI: <code>{get_class($di)}</code>, services: <code>db</code>{if $di->has('greeter')}, <code>greeter</code>{/if}{if $di->has('documents')}, <code>documents</code>{/if}.
+        {if $frontend ?? false}
+            <br>Served by the <strong>aPhalcon front controller</strong>: the path was resolved to document #{$id}
+            through Phalcon's <code>db</code>, and the CMS parser was not involved.
+        {/if}
+    {/block}
+</p>
+</body>
+</html>

@@ -1,31 +1,30 @@
-{* A CMS template kept in a file: the "aPhalcon demo" template's code is this
-   file, so a document using it is rendered by Latte alone. The document's
-   fields are plain variables; Phalcon's services are one call away. *}
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="utf-8">
-    <title>{$pagetitle}</title>
-    <style>
-        body { font: 16px/1.5 system-ui, sans-serif; max-width: 48rem; margin: 3rem auto; padding: 0 1rem; color: #222; }
-        code { background: #f3f3f3; padding: .1em .3em; }
-        li { margin: .25rem 0; }
-    </style>
-</head>
-<body>
-<h1>{$pagetitle}</h1>
-<p>{phalcon('greeter')->greet($pagetitle)}</p>
-{$content|noescape}
-<h2>Latest pages, through a Phalcon model</h2>
-<ul>
-    <li n:foreach="phalcon('documents')->latest(5) as $document">
-        <a href="{$evo->makeUrl($document->id)}">{$document->pagetitle}</a> <small>#{$document->id}</small>
-    </li>
-</ul>
-<p>
-    The same data, from a Phalcon route rendering a CMS view:
-    <a href="{$evo->getConfig('site_url')}app/">/app/</a>.
-</p>
-<p><small>Document #{$id}, template file <code>views/aphalcon-demo-page.latte</code>. No EVO parser pass: <code>{{site_name}}</code> and <code>[(site_name)]</code> stay as typed.</small></p>
-</body>
-</html>
+{*
+   aphalcon-demo-page.latte - a CMS template kept in a file, and the root of
+   the chain for a document.
+
+   The "aPhalcon demo" template's code is this file, so a document using it is
+   rendered by Latte alone: aphalcon-demo-page -> aphalcon-section ->
+   aphalcon-base. The document's fields are plain variables here and in every
+   parent; Phalcon's services are one {phalcon()} call away.
+
+   No EVO parser pass: {{site_name}} and [(site_name)] below stay as typed.
+*}
+{extends 'aphalcon-section.latte'}
+
+{block bodyClass}aph-base aph-section aph-document{/block}
+
+{block intro}{phalcon('greeter')->greet($pagetitle)}{/block}
+
+{block body}
+    {$content|noescape}
+    <p>
+        Chain: <code>aphalcon-demo-page.latte</code> → <code>aphalcon-section.latte</code> → <code>aphalcon-base.latte</code>.
+        The same data, from a Phalcon route rendering the same chain:
+        <a href="{$evo->getConfig('site_url')}app/">/app/</a>.
+    </p>
+    <p><small>Document #{$id}. No EVO parser pass: <code>{{site_name}}</code> and <code>[(site_name)]</code> stay as typed.</small></p>
+{/block}
+
+{block asideExtra}
+    <p><small>Filled by the document root: <code>{='{block asideExtra}'}</code>.</small></p>
+{/block}

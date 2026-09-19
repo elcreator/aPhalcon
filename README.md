@@ -62,6 +62,11 @@ return [
         ],
     ],
 
+    'frontend' => [
+        'takeover' => false,    // true: Phalcon serves the whole front end (see below)
+        'fallback' => true,     // hand what it cannot render back to the CMS parser
+    ],
+
     'latte' => ['function' => 'phalcon'],   // the Latte function name; '' for none
 ];
 ```
@@ -74,6 +79,7 @@ return [
 | `cms` | `Elcreator\aPhalcon\Cms` — the CMS for a handler: `view()`, `respond()`, `url()`, `setting()`, `snippet()`, `evo()` |
 | `evo` | the core, `evo()`, with system settings loaded |
 | `tablePrefix` | the connection's table prefix, for a model's `setSource()` |
+| `site` | `ElcreatorPhalcon\Frontend\Frontend` — the document tree as Phalcon reads it: `document($id)`, `handle($path)`, `render($row)`, `documents()` |
 
 Everything `FactoryDefault` provides (`modelsManager`, `modelsMetadata`, `request`, `response`, `router`, …) is there as usual, so a `Phalcon\Mvc\Model` works with nothing more than a source name:
 
@@ -164,6 +170,60 @@ the real one (`$app->request` reads the same superglobals). Whatever the handler
 produces — a Phalcon `Response`, a string, an array, printed output — becomes the
 Laravel response the CMS sends.
 
+## Replacing the CMS front end
+
+```php
+'frontend' => ['takeover' => true],
+```
+
+With this on, Phalcon answers every front-end request and the CMS renders
+only the manager (its own entry point, `manager/index.php`, never touched).
+A request path is resolved to a document the way the CMS would resolve it —
+`site_start` for `/`, `?id=N`, or the alias path with `friendly_url_prefix` /
+`friendly_url_suffix` stripped and `use_alias_path` honoured — and the
+document is rendered from its template's `views/<templatealias>.latte`, with
+the content table's columns and the document's TVs as plain variables:
+
+```latte
+{extends 'layout.latte'}
+{block content}
+    <h1>{$pagetitle}</h1>
+    <p>{$description}</p>
+    {$content|noescape}
+    <a href="{phalcon('cms')->url($parent)}">up</a>
+{/block}
+```
+
+No parser pass: `{{chunk}}`, `[[snippet]]` and `[*tv*]` are text. What a page
+needs beyond its own row it asks Phalcon for through `{phalcon()}`. Weblinks
+redirect, unpublished and deleted documents are misses, and a miss renders the
+`error_page` document with a 404.
+
+The reads go through the DI's `db` — `Frontend\Documents` is a small
+repository over `site_content`, `site_templates` and the TV tables — so the
+front end runs on Phalcon's connection with the CMS's credentials, and the
+same object is the DI's `site` service, for a route that wants a page:
+
+```php
+$app->get('/latest', function () use ($app) {
+    return $app->site->document((int) $app->documents->latest(1)[0]->id);
+});
+```
+
+**`fallback`** (default `true`) is the escape hatch: a document whose template
+has no view file — one still held in the database — and a miss whose
+`error_page` cannot be rendered are handed back to the CMS parser, by the
+`NotFoundHttpException` that `Core::processRoutes()` answers with
+`executeParser()`. A site can move templates to Latte one at a time. With
+`fallback => false` those are a plain 500 / 404 from Phalcon and the parser
+never runs. Every response the front controller produces carries
+`X-Rendered-By: aPhalcon`.
+
+What the parser did that this does not: web-user access (`privateweb`,
+`unauthorized_page`), the page cache, and the document-level plugin events
+(`OnLoadWebDocument`, `OnWebPagePrerender`, …). A site that needs them for
+some documents keeps `fallback` on and their templates in the database.
+
 ## Demo
 
 ```bash
@@ -173,15 +233,25 @@ php artisan aphalcon:demo:remove
 ```
 
 Installs one template kept in `views/aphalcon-demo-page.latte`, one document
-at `/aphalcon-demo.html` using it, a Phalcon route set at `/app/` rendering
-`views/aphalcon-demo.latte`, and — only if the site has none of its own —
+at `/demo` (alias `demo`) using it, a Phalcon route set at `/app/` rendering
+`views/aphalcon-demo.latte`, the two parents both of those extend —
+`aphalcon-section.latte` → `aphalcon-base.latte`, a three-level `{extends}`
+chain the way the aLatteX demo lays pages out, with the CMS document and the
+Phalcon route as two roots of the same chain — and, only if the site has none
+of its own,
 `core/custom/config/aphalcon.php` naming the demo's provider and routes and
 `core/custom/config/alattex.php` switching the parser off for file templates.
 Removal deletes only files still identical to what was installed.
 
+The demo config turns `frontend.takeover` on, so the demo page is served by
+the front controller (`X-Rendered-By: aPhalcon`), `/app/page/{id}` renders any
+document from a route through the `site` service, and the stock start page —
+its template in the database — is handed back to the CMS by `fallback`.
+
 The same classes are the test fixtures: `tests/Integration/DemoTest.php` runs
 the demo's provider, model and routes over an in-memory sqlite and renders the
-shipped views through the real aLatteX engine.
+shipped views through the real aLatteX engine; `FrontendTest.php` resolves and
+renders a small document tree the way the front controller does.
 
 ## Development
 

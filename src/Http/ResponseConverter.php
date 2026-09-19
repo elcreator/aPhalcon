@@ -28,6 +28,12 @@ final class ResponseConverter
             return $this->fromPhalcon($returned, (string) $returned->getContent());
         }
 
+        // Already the CMS's kind of response - what the 'site' service and
+        // Cms hand back - and not a Stringable to be printed.
+        if ($returned instanceof SymfonyResponse) {
+            return $returned;
+        }
+
         if (is_array($returned) || $returned instanceof \JsonSerializable) {
             $response = new JsonResponse($returned);
             $this->applyShared($response, $shared);

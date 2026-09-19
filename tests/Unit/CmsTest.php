@@ -54,6 +54,8 @@ test('url(), setting() and snippet() go to the core', function (): void {
     expect($cms->evo())->toBe($evo);
     expect($cms->url(5))->toBe('/index.php?id=5');
     expect($cms->url(5, ['page' => 2]))->toBe('/index.php?id=5&page=2');
+    // A stringified id, as the CMS connection's PDO options hand them out.
+    expect($cms->url('7'))->toBe('/index.php?id=7');
     expect($cms->setting('site_name'))->toBe('Site');
     expect($cms->setting('nope', 'dflt'))->toBe('dflt');
     expect($cms->snippet('rows', ['n' => 21]))->toBe(42);

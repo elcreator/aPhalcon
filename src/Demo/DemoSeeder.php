@@ -10,8 +10,9 @@ use Illuminate\Support\Facades\DB;
 /**
  * Puts the demo into a site and takes it out again.
  *
- * One category, one file-backed template, one document, two view files and
- * two config files. Everything is addressed by name and written only where
+ * One category, one file-backed template, one document, four view files (a
+ * layout, a section, and the two roots that extend them) and two config
+ * files. Everything is addressed by name and written only where
  * nothing of the site's own is in the way: a view or config file that is
  * there and differs from what the demo ships is kept, on install and on
  * remove alike.
@@ -21,7 +22,7 @@ final class DemoSeeder
     public const CATEGORY = 'aPhalcon demo';
     public const TEMPLATE = 'aPhalcon demo';
     public const TEMPLATE_ALIAS = 'aphalcon-demo-page';
-    public const DOCUMENT_ALIAS = 'aphalcon-demo';
+    public const DOCUMENT_ALIAS = 'demo';
 
     /** @var list<string> */
     private array $log = [];

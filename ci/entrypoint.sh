@@ -88,7 +88,7 @@ case "$command" in
         echo
         echo "Site:    http://localhost:8080/"
         echo "Manager: http://localhost:8080/manager/  (admin / Passw0rd123)"
-        echo "Demo:    http://localhost:8080/aphalcon-demo.html  and  http://localhost:8080/app/"
+        echo "Demo:    http://localhost:8080/demo  and  http://localhost:8080/app/"
         # ci/router.php: php's server serves files itself and hands every
         # other path to index.php, which is what the Phalcon mount under /app/
         # needs - it is a Laravel route, matched on the request path.

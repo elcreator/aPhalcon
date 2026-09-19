@@ -30,16 +30,20 @@ docker compose -f ci/compose.yaml up serve          # CMS on http://localhost:80
   the real rewrite rules and are unaffected.
 * **The demo is installed for you** (`aphalcon:demo:install --force`), so the
   served site has a page whose template is a `.latte` file calling Phalcon
-  services at `/aphalcon-demo.html`, and a Phalcon route rendering a CMS view
+  services at `/demo`, and a Phalcon route rendering a CMS view
   at `/app/`. Remove it with:
 
   ```sh
   docker compose -f ci/compose.yaml exec serve php /build/core/artisan aphalcon:demo:remove --force
   ```
 
-* **`/app/` works under `php -S`** because `serve` runs it with `ci/router.php`,
-  which hands every non-file path to `index.php` the way the real rewrite
-  rules do. Friendly document URLs still do not, for the reason above.
+* **`/app/` and `/demo` work under `php -S`** because `serve` runs it with
+  `ci/router.php`, which hands every non-file path to `index.php` the way the
+  real rewrite rules do. The demo config turns `frontend.takeover` on, so the
+  Phalcon front controller resolves `/demo` by alias itself and the parser's
+  `?q=` limitation above only affects pages it hands back to the CMS (the
+  stock start page). Switching `friendly_urls` on in System Settings then
+  makes the CMS spell links as `/demo/`, which Phalcon serves too.
 
 * **aLatteX is taken from the sibling checkout** at `../aLatteX` when there is
   one (`ALATTEX_SRC` to point elsewhere), because the `{phalcon()}` Latte

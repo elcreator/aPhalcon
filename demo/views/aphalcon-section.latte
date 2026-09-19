@@ -1,0 +1,44 @@
+{*
+   aphalcon-section.latte - the middle of the chain.
+
+   Extends aphalcon-base.latte and is extended in turn by both roots: the CMS
+   document's template (aphalcon-demo-page.latte) and the Phalcon route's view
+   (aphalcon-demo.latte). It fills the layout's content block with a two
+   column section and opens blocks of its own for the roots to fill.
+
+   {include parent} in the crumbs block is the tag worth reading: it renders
+   the block as the layout defined it, then adds to it.
+
+   The aside is the same on every page and route, and it asks Phalcon for its
+   rows - the 'documents' service, a repository over a Phalcon\Mvc\Model on
+   the site's own site_content table.
+*}
+{extends 'aphalcon-base.latte'}
+
+{block bodyClass}aph-base aph-section{/block}
+
+{block crumbs}
+    {include parent} / <span>{block crumb}{$title ?? $pagetitle ?? 'demo'}{/block}</span>
+{/block}
+
+{block content}
+    <div class="aph-grid">
+        <main>
+            <h1>{block heading}{$title ?? $pagetitle ?? 'aPhalcon'}{/block}</h1>
+            <p>{block intro}{/block}</p>
+            {block body}{/block}
+        </main>
+        <aside class="aph-aside">
+            {block aside}
+                <h2>Latest pages</h2>
+                <p><small>via <code>phalcon('documents')->latest()</code></small></p>
+                <ul>
+                    <li n:foreach="phalcon('documents')->latest(5) as $document">
+                        <a href="{phalcon('cms')->url($document->id)}">{$document->pagetitle}</a> <small>#{$document->id}</small>
+                    </li>
+                </ul>
+                {block asideExtra}{/block}
+            {/block}
+        </aside>
+    </div>
+{/block}

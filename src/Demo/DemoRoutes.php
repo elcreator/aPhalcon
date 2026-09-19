@@ -9,8 +9,8 @@ use Phalcon\Mvc\Micro;
  * What a site lists under aphalcon.routes.handlers: Phalcon routes, answering
  * under the CMS's mount point and rendering the CMS's own view files.
  *
- * With the default prefix these are /app/, /app/documents.json and
- * /app/documents/{id}.
+ * With the default prefix these are /app/, /app/documents.json,
+ * /app/documents/{id} and /app/page/{id}.
  */
 final class DemoRoutes
 {
@@ -34,6 +34,12 @@ final class DemoRoutes
             }
 
             return $rows;
+        });
+
+        // A CMS document, rendered by the front controller from a route:
+        // the 'site' service resolves its template to views/<alias>.latte.
+        $app->get('/page/{id:[0-9]+}', function (string $id) use ($app) {
+            return $app->site->document((int) $id);
         });
 
         $app->get('/documents/{id:[0-9]+}', function (string $id) use ($app) {
