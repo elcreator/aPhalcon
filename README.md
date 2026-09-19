@@ -20,7 +20,7 @@ built from route handlers or a full `Phalcon\Mvc\Application` of your own.
 
 - PHP 8.3+ with the [Phalcon 5](https://phalcon.io) extension loaded
 - Evolution CMS 3.5.9+
-- [aLatteX](https://github.com/elcreator/aLatteX) with `LattexEngine::addExtension()` (pulled in via Composer)
+- [aLatteX](https://github.com/elcreator/aLatteX) 0.5+ (pulled in via Composer)
 
 ## Installation
 

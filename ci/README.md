@@ -46,9 +46,8 @@ docker compose -f ci/compose.yaml up serve          # CMS on http://localhost:80
   makes the CMS spell links as `/demo/`, which Phalcon serves too.
 
 * **aLatteX is taken from the sibling checkout** at `../aLatteX` when there is
-  one (`ALATTEX_SRC` to point elsewhere), because the `{phalcon()}` Latte
-  function needs `LattexEngine::addExtension()`, which a released aLatteX may
-  not carry yet. Without a checkout composer resolves aLatteX from packagist.
+  one (`ALATTEX_SRC` to point elsewhere), so the two can be developed
+  together. Without a checkout composer resolves aLatteX from packagist.
 
 By default the CMS is taken from the checkout at `../../evolution` — the layout
 these plugins are developed in. Point `EVO_SRC` elsewhere, or at nothing, to
