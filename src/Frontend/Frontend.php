@@ -19,9 +19,11 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
  * Also the DI's 'site' service, so a Phalcon route can render a document the
  * same way: $app->site->document($id) or ->resolve($path).
  *
- * What the CMS does that this does not: web-user access (privateweb),
- * document caching, and the page-level plugin events. A site that needs
- * those keeps the parser for the documents concerned - see 'fallback'.
+ * What the CMS does that this does not: web-user access, document caching,
+ * and the page-level plugin events. A private document is never rendered here:
+ * it goes to the parser, which knows who is asking, or is a 404 without
+ * 'fallback'. A site that needs the rest keeps the parser for the documents
+ * concerned - see 'fallback'.
  */
 final class Frontend
 {
@@ -57,6 +59,10 @@ final class Frontend
             return $this->notFound();
         }
 
+        if ($this->isPrivate($document)) {
+            return $this->leavePrivate();
+        }
+
         if (($document['type'] ?? 'document') === 'reference') {
             return $this->redirect((string) $document['content']);
         }
@@ -69,7 +75,11 @@ final class Frontend
     {
         $document = $this->documents->find($id);
 
-        return $document === null || !$this->isLive($document) ? $this->notFound() : $this->render($document);
+        if ($document === null || !$this->isLive($document)) {
+            return $this->notFound();
+        }
+
+        return $this->isPrivate($document) ? $this->leavePrivate() : $this->render($document);
     }
 
     /**
@@ -134,6 +144,21 @@ final class Frontend
         }
 
         return new LaravelResponse('Not Found', 404, ['Content-Type' => 'text/plain; charset=UTF-8', self::HEADER => 'aPhalcon']);
+    }
+
+    /** Open to some web users only: DocumentPrivacy keeps the flag in step with the document's groups. */
+    private function isPrivate(array $document): bool
+    {
+        return (int) ($document['privateweb'] ?? 0) !== 0;
+    }
+
+    private function leavePrivate(): SymfonyResponse
+    {
+        if ($this->fallback) {
+            throw new NotFoundHttpException('aPhalcon: a private document, left to the CMS');
+        }
+
+        return $this->notFound();
     }
 
     /** A weblink's target: a URL as given, or a document id as its URL. */
