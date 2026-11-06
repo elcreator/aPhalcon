@@ -219,10 +219,14 @@ has no view file — one still held in the database — and a miss whose
 never runs. Every response the front controller produces carries
 `X-Rendered-By: aPhalcon`.
 
-What the parser did that this does not: web-user access (`privateweb`,
-`unauthorized_page`), the page cache, and the document-level plugin events
-(`OnLoadWebDocument`, `OnWebPagePrerender`, …). A site that needs them for
-some documents keeps `fallback` on and their templates in the database.
+A private document (`privateweb`) is never rendered here. It goes to the parser,
+which checks the visitor and answers with `unauthorized_page`; with
+`fallback => false` it is a 404, so a site that restricts documents to web users
+keeps `fallback` on.
+
+What the parser did that this does not: the page cache and the document-level
+plugin events (`OnLoadWebDocument`, `OnWebPagePrerender`, …). A site that needs
+them for some documents keeps `fallback` on and their templates in the database.
 
 ## Demo
 

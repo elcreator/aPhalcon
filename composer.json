@@ -14,7 +14,7 @@
   "require": {
     "php": "^8.3",
     "ext-phalcon": "^5.0",
-    "evolution-cms/evolution": "^3.5.9",
+    "evolution-cms/evolution": "^3.5.8",
     "elcreator/alattex": "^0.5"
   },
   "require-dev": {

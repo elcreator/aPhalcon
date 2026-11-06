@@ -21,11 +21,13 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
  *   6 draft (unpublished)
  *   7 gone (deleted)
  *   8 legacy (template 3 "db-only": no view)
+ *   9 members (privateweb)
+ *  10 members-link (privateweb) -> reference to document 2
  */
 function siteDb(): \Phalcon\Db\Adapter\AdapterInterface
 {
     $db = DbConfig::adapter(['driver' => 'sqlite', 'database' => ':memory:']);
-    $db->execute('CREATE TABLE evo_site_content (id INTEGER PRIMARY KEY, type TEXT DEFAULT "document", contentType TEXT DEFAULT "text/html", pagetitle TEXT, longtitle TEXT DEFAULT "", description TEXT DEFAULT "", alias TEXT, parent INTEGER DEFAULT 0, published INTEGER DEFAULT 1, deleted INTEGER DEFAULT 0, template INTEGER DEFAULT 0, content TEXT DEFAULT "", pub_date INTEGER DEFAULT 0, unpub_date INTEGER DEFAULT 0)');
+    $db->execute('CREATE TABLE evo_site_content (id INTEGER PRIMARY KEY, type TEXT DEFAULT "document", contentType TEXT DEFAULT "text/html", pagetitle TEXT, longtitle TEXT DEFAULT "", description TEXT DEFAULT "", alias TEXT, parent INTEGER DEFAULT 0, published INTEGER DEFAULT 1, deleted INTEGER DEFAULT 0, template INTEGER DEFAULT 0, content TEXT DEFAULT "", pub_date INTEGER DEFAULT 0, unpub_date INTEGER DEFAULT 0, privateweb INTEGER DEFAULT 0)');
     $db->execute('CREATE TABLE evo_site_templates (id INTEGER PRIMARY KEY, templatename TEXT, templatealias TEXT, templatesource TEXT DEFAULT "", templatefileextension TEXT DEFAULT "")');
     $db->execute('CREATE TABLE evo_site_tmplvars (id INTEGER PRIMARY KEY, name TEXT, default_text TEXT DEFAULT "", rank INTEGER DEFAULT 0)');
     $db->execute('CREATE TABLE evo_site_tmplvar_templates (tmplvarid INTEGER, templateid INTEGER)');
@@ -36,6 +38,8 @@ function siteDb(): \Phalcon\Db\Adapter\AdapterInterface
     $db->execute("INSERT INTO evo_site_content (id, type, pagetitle, alias, parent, template, content) VALUES (5, 'reference', 'Link', 'link', 0, 2, '2')");
     $db->execute("INSERT INTO evo_site_content (id, pagetitle, alias, parent, template, published) VALUES (6, 'Draft', 'draft', 0, 2, 0)");
     $db->execute("INSERT INTO evo_site_content (id, pagetitle, alias, parent, template, deleted) VALUES (7, 'Gone', 'gone', 0, 2, 1)");
+    $db->execute("INSERT INTO evo_site_content (id, pagetitle, alias, parent, template, privateweb) VALUES (9, 'Members', 'members', 0, 2, 1)");
+    $db->execute("INSERT INTO evo_site_content (id, type, pagetitle, alias, parent, template, content, privateweb) VALUES (10, 'reference', 'Members link', 'members-link', 0, 0, '2', 1)");
     $db->execute("INSERT INTO evo_site_tmplvars (id, name, default_text, rank) VALUES (1, 'subtitle', 'default subtitle', 0), (2, 'colour', 'grey', 1)");
     $db->execute("INSERT INTO evo_site_tmplvar_templates (tmplvarid, templateid) VALUES (1, 2), (2, 2)");
     $db->execute("INSERT INTO evo_site_tmplvar_contentvalues (tmplvarid, contentid, value) VALUES (1, 2, 'About us')");
@@ -184,4 +188,21 @@ test('document() renders by id for a route, and path() spells a document the way
 
     [, $flat] = site(['use_alias_path' => 0, 'friendly_url_suffix' => '/']);
     expect($flat->path($flat->find(3)))->toBe('team/');
+});
+
+test('a private document is the CMS\'s to answer, which knows who is asking, or a 404 without fallback', function (): void {
+    [$lenient, , $rendered] = site();
+
+    expect(static fn () => $lenient->handle('members.html'))->toThrow(NotFoundHttpException::class);
+    expect(static fn () => $lenient->handle('', ['id' => 9]))->toThrow(NotFoundHttpException::class);
+    expect(static fn () => $lenient->document(9))->toThrow(NotFoundHttpException::class);
+    expect(static fn () => $lenient->handle('members-link.html'))->toThrow(NotFoundHttpException::class);
+    expect($rendered)->toHaveCount(0);
+
+    [$strict] = site(fallback: false);
+    $response = $strict->handle('members.html');
+    expect($response->getStatusCode())->toBe(404);
+    expect($response->getContent())->not->toContain('Members');
+    expect($strict->handle('members-link.html')->getStatusCode())->toBe(404);
+    expect($strict->document(9)->getStatusCode())->toBe(404);
 });
