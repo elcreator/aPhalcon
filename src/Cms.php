@@ -81,6 +81,63 @@ final class Cms
         return (string) $this->evo()->makeUrl((int) $id, '', $args === [] ? '' : http_build_query($args));
     }
 
+    /**
+     * Content with the CMS's link tags resolved, as the parser would have
+     * resolved them: [~id~] (what the manager's link picker writes),
+     * [(site_url)] and [(base_url)]. The front controller runs no parser, so
+     * a template prints a rich-text field through this, or the |links filter.
+     */
+    public function links(string $html): string
+    {
+        $html = (string) preg_replace_callback(
+            '#\[~(\d+)~\]#',
+            fn (array $m): string => $this->url((int) $m[1]),
+            $html,
+        );
+
+        if (!str_contains($html, '[(')) {
+            return $html;
+        }
+
+        return strtr($html, [
+            '[(site_url)]' => (string) $this->setting('site_url', ''),
+            '[(base_url)]' => (string) $this->setting('base_url', ''),
+        ]);
+    }
+
+    /**
+     * Make a document the core's current one, as the parser does before it
+     * renders a page: documentObject (fields, and TVs as the core keeps
+     * them), documentIdentifier and documentMethod. Snippets, @ bindings,
+     * aLatteX's evoTv() and parse() read the page from there.
+     *
+     * @param array<string, mixed> $document a site_content row
+     * @param array<string, array<int, string>> $tvRows Documents::tvRows()
+     */
+    public function enter(array $document, array $tvRows = []): void
+    {
+        $evo = $this->evo();
+        $evo->documentObject = array_merge($document, $tvRows);
+        $evo->documentIdentifier = (int) ($document['id'] ?? 0);
+        $evo->documentMethod = 'id';
+    }
+
+    /**
+     * Run the CMS parser over a piece of content: {{chunks}}, [[snippets]]
+     * (cached or not - nothing here is page-cached), [*fields*] and TVs of the
+     * entered document, [(settings)], [+placeholders+], output modifiers and
+     * [~id~] links. Opt in per field, with the |evo filter: a rich-text field
+     * where editors use CMS tags. The template itself stays Latte.
+     */
+    public function parse(string $html): string
+    {
+        $evo = $this->evo();
+        $html = str_replace(['[!', '!]'], ['[[', ']]'], $html);
+        $html = (string) $evo->parseDocumentSource($html);
+
+        return (string) $evo->rewriteUrls($html);
+    }
+
     /** A system setting. */
     public function setting(string $name, mixed $default = null): mixed
     {

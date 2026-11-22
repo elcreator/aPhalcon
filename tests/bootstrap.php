@@ -119,6 +119,13 @@ final class FakeEvolutionCore
     /** @var list<array{0: string, 1: array<string, mixed>}> */
     public array $snippetCalls = [];
 
+    public int|string $documentIdentifier = 0;
+
+    public string $documentMethod = '';
+
+    /** @var list<string> what parseDocumentSource() and rewriteUrls() were handed */
+    public array $parsed = [];
+
     /** @param array<string, mixed> $config */
     public function __construct(
         private array $config = [],
@@ -145,6 +152,25 @@ final class FakeEvolutionCore
     public function makeUrl(int|string $id, string $alias = '', string $args = '', string $scheme = ''): string
     {
         return '/index.php?id=' . $id . ($args !== '' ? '&' . $args : '');
+    }
+
+    /** The parser, reduced to the field tags of documentObject. */
+    public function parseDocumentSource(string $source): string
+    {
+        $this->parsed[] = 'parse:' . $source;
+
+        return (string) preg_replace_callback('#\[\*(\w+)\*\]#', function (array $m): string {
+            $value = $this->documentObject[$m[1]] ?? '';
+
+            return (string) (is_array($value) ? ($value[1] ?? '') : $value);
+        }, $source);
+    }
+
+    public function rewriteUrls(string $source): string
+    {
+        $this->parsed[] = 'urls:' . $source;
+
+        return (string) preg_replace('#\[~(\d+)~\]#', '/index.php?id=$1', $source);
     }
 
     public function runSnippet(string $name, array $params = []): mixed

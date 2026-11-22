@@ -105,7 +105,12 @@ final class Frontend
             );
         }
 
-        $fields = $document + $this->documents->tvs((int) $document['id'], (int) ($document['template'] ?? 0));
+        $id = (int) $document['id'];
+        $tvRows = $this->documents->tvRows($id, (int) ($document['template'] ?? 0));
+        // The page is the core's current document before anything is evaluated: @ bindings,
+        // snippets, evoTv() and the |evo filter read it from there.
+        $this->cms->enter($document, $tvRows);
+        $fields = $document + $this->documents->values($tvRows, $id);
         $data = $fields + $extra + ['documentObject' => $fields, 'frontend' => true];
 
         $response = new LaravelResponse($this->cms->view($alias, $data), $status);

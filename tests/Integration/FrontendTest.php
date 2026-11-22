@@ -27,9 +27,9 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 function siteDb(): \Phalcon\Db\Adapter\AdapterInterface
 {
     $db = DbConfig::adapter(['driver' => 'sqlite', 'database' => ':memory:']);
-    $db->execute('CREATE TABLE evo_site_content (id INTEGER PRIMARY KEY, type TEXT DEFAULT "document", contentType TEXT DEFAULT "text/html", pagetitle TEXT, longtitle TEXT DEFAULT "", description TEXT DEFAULT "", alias TEXT, parent INTEGER DEFAULT 0, published INTEGER DEFAULT 1, deleted INTEGER DEFAULT 0, template INTEGER DEFAULT 0, content TEXT DEFAULT "", pub_date INTEGER DEFAULT 0, unpub_date INTEGER DEFAULT 0, privateweb INTEGER DEFAULT 0)');
+    $db->execute('CREATE TABLE evo_site_content (id INTEGER PRIMARY KEY, type TEXT DEFAULT "document", contentType TEXT DEFAULT "text/html", pagetitle TEXT, longtitle TEXT DEFAULT "", description TEXT DEFAULT "", alias TEXT, parent INTEGER DEFAULT 0, published INTEGER DEFAULT 1, deleted INTEGER DEFAULT 0, template INTEGER DEFAULT 0, content TEXT DEFAULT "", pub_date INTEGER DEFAULT 0, unpub_date INTEGER DEFAULT 0, privateweb INTEGER DEFAULT 0, menuindex INTEGER DEFAULT 0, hidemenu INTEGER DEFAULT 0)');
     $db->execute('CREATE TABLE evo_site_templates (id INTEGER PRIMARY KEY, templatename TEXT, templatealias TEXT, templatesource TEXT DEFAULT "", templatefileextension TEXT DEFAULT "")');
-    $db->execute('CREATE TABLE evo_site_tmplvars (id INTEGER PRIMARY KEY, name TEXT, default_text TEXT DEFAULT "", rank INTEGER DEFAULT 0)');
+    $db->execute('CREATE TABLE evo_site_tmplvars (id INTEGER PRIMARY KEY, name TEXT, type TEXT DEFAULT "text", display TEXT DEFAULT "", display_params TEXT DEFAULT "", default_text TEXT DEFAULT "", rank INTEGER DEFAULT 0)');
     $db->execute('CREATE TABLE evo_site_tmplvar_templates (tmplvarid INTEGER, templateid INTEGER)');
     $db->execute('CREATE TABLE evo_site_tmplvar_contentvalues (id INTEGER PRIMARY KEY, tmplvarid INTEGER, contentid INTEGER, value TEXT)');
 
@@ -205,4 +205,61 @@ test('a private document is the CMS\'s to answer, which knows who is asking, or 
     expect($response->getContent())->not->toContain('Members');
     expect($strict->handle('members-link.html')->getStatusCode())->toBe(404);
     expect($strict->document(9)->getStatusCode())->toBe(404);
+});
+
+test('children() lists the live children in menu order, ancestors() walks up to the top level', function (): void {
+    [, $documents] = site();
+    $db = (new ReflectionProperty($documents, 'db'))->getValue($documents);
+    $db->execute('UPDATE evo_site_content SET menuindex = 5 WHERE id = 1');
+    $db->execute('UPDATE evo_site_content SET hidemenu = 1 WHERE id = 4');
+    $db->execute("INSERT INTO evo_site_content (id, pagetitle, alias, parent, template, pub_date) VALUES (11, 'Later', 'later', 0, 2, ?)", [time() + 3600]);
+    $db->execute("INSERT INTO evo_site_content (id, pagetitle, alias, parent, template) VALUES (12, 'Members', 'members', 3, 2)");
+
+    // 6 unpublished, 7 deleted and 11 not yet due are left out; 1 comes last by its menuindex.
+    expect(array_column($documents->children(0), 'id'))->toEqual([2, 4, 5, 8, 9, 10, 1]);
+    expect(array_column($documents->children(0, true), 'id'))->toEqual([2, 5, 8, 9, 10, 1]);
+    expect(array_column($documents->children(2), 'pagetitle'))->toBe(['Team']);
+    expect($documents->children(99))->toBe([]);
+
+    expect($documents->ancestors(12))->toBe([3, 2]);
+    expect($documents->ancestors(2))->toBe([]);
+    expect($documents->ancestors(404))->toBe([]);
+
+    $db->execute('UPDATE evo_site_content SET parent = 3 WHERE id = 2');
+    expect($documents->ancestors(12))->toBe([3, 2]);
+});
+
+test('an @ binding in a TV is evaluated for the document, a plain value is left alone', function (): void {
+    useFakeEvo(config: ['site_start' => 1]);
+    $db = siteDb();
+    $db->execute("UPDATE evo_site_tmplvar_contentvalues SET value = '@INHERIT' WHERE contentid = 2");
+    $db->execute("INSERT INTO evo_site_tmplvar_contentvalues (tmplvarid, contentid, value) VALUES (2, 3, '')");
+
+    $calls = [];
+    $documents = new Documents($db, 'evo_', static fn (string $n, mixed $d = null) => $d, static function (string $value, string $name, int $id) use (&$calls): string {
+        $calls[] = [$value, $name, $id];
+
+        return 'bound:' . $name;
+    });
+
+    expect($documents->tvs(2, 2))->toBe(['subtitle' => 'bound:subtitle', 'colour' => 'grey']);
+    expect($calls)->toBe([['@INHERIT', 'subtitle', 2]]);
+    // An empty stored value falls back to the default, as in the core.
+    expect($documents->tvRows(3, 2)['colour'])->toBe(['colour', 'grey', '', '', 'text']);
+    // Without a binding evaluator the raw value is passed on.
+    expect((new Documents($db, 'evo_', static fn (string $n, mixed $d = null) => $d))->tvs(2, 2)['subtitle'])->toBe('@INHERIT');
+});
+
+test('a rendered document is the current one of the core, TVs in its own shape', function (): void {
+    [$frontend, , $rendered] = site();
+
+    $frontend->handle('about.html');
+
+    $evo = evo();
+    expect($evo->documentIdentifier)->toBe(2);
+    expect($evo->documentMethod)->toBe('id');
+    expect($evo->documentObject['pagetitle'])->toBe('About');
+    expect($evo->documentObject['subtitle'])->toBe(['subtitle', 'About us', '', '', 'text']);
+    // The view still gets flat values.
+    expect($rendered[0][1]['subtitle'])->toBe('About us');
 });

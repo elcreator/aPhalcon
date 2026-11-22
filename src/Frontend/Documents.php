@@ -22,12 +22,15 @@ use Phalcon\Db\Enum;
 final class Documents
 {
     /**
-     * @param \Closure(string, mixed): mixed $setting a CMS setting by name, with a default
+     * @param \Closure(string, mixed): mixed            $setting a CMS setting by name, with a default
+     * @param (\Closure(string, string, int): mixed)|null $binding evaluates a TV value that starts with "@"
+     *                                                          (@INHERIT, @CHUNK, @SELECT, ...): value, TV name, document id
      */
     public function __construct(
         private AdapterInterface $db,
         private string $prefix,
         private \Closure $setting,
+        private ?\Closure $binding = null,
     ) {
     }
 
@@ -106,18 +109,30 @@ final class Documents
     /**
      * The template variables attached to a template, with the document's
      * value or, failing one, the TV's default - flat, name => value, the way
-     * a template reads them as {$name}.
+     * a template reads them as {$name}. A value that is an @ binding is
+     * evaluated, as the CMS evaluates it when it outputs the TV.
      *
-     * @return array<string, string>
+     * @return array<string, mixed>
      */
     public function tvs(int $documentId, int $templateId): array
+    {
+        return $this->values($this->tvRows($documentId, $templateId), $documentId);
+    }
+
+    /**
+     * The same TVs the way the core keeps them in documentObject:
+     * name => [name, value, display, display_params, type], value unevaluated.
+     *
+     * @return array<string, array{0: string, 1: string, 2: string, 3: string, 4: string}>
+     */
+    public function tvRows(int $documentId, int $templateId): array
     {
         if ($templateId <= 0) {
             return [];
         }
 
         $rows = $this->db->fetchAll(
-            'SELECT tv.name, tv.default_text, v.value FROM ' . $this->table('site_tmplvars') . ' tv'
+            'SELECT tv.name, tv.type, tv.display, tv.display_params, tv.default_text, v.value FROM ' . $this->table('site_tmplvars') . ' tv'
             . ' INNER JOIN ' . $this->table('site_tmplvar_templates') . ' tt ON tt.tmplvarid = tv.id'
             . ' LEFT JOIN ' . $this->table('site_tmplvar_contentvalues') . ' v ON v.tmplvarid = tv.id AND v.contentid = ?'
             . ' WHERE tt.templateid = ?'
@@ -128,10 +143,96 @@ final class Documents
 
         $tvs = [];
         foreach ($rows as $row) {
-            $tvs[(string) $row['name']] = (string) ($row['value'] ?? $row['default_text'] ?? '');
+            $name = (string) $row['name'];
+            // An empty value falls back to the default, as in the core's documentObject.
+            $value = (string) ($row['value'] ?? '');
+            if ($value === '') {
+                $value = (string) ($row['default_text'] ?? '');
+            }
+            $tvs[$name] = [$name, $value, (string) ($row['display'] ?? ''), (string) ($row['display_params'] ?? ''), (string) ($row['type'] ?? '')];
         }
 
         return $tvs;
+    }
+
+    /**
+     * Flat values of tvRows(), @ bindings evaluated for the given document.
+     *
+     * @param array<string, array{0: string, 1: string}> $rows
+     * @return array<string, mixed>
+     */
+    public function values(array $rows, int $documentId): array
+    {
+        $values = [];
+        foreach ($rows as $name => $row) {
+            $value = $row[1];
+            if ($this->binding !== null && str_starts_with(ltrim($value), '@')) {
+                $value = ($this->binding)($value, (string) $name, $documentId);
+            }
+            $values[$name] = $value;
+        }
+
+        return $values;
+    }
+
+    /**
+     * The live children of a document in menu order: what a menu, a docs
+     * sidebar or a list of cards is built from. Unpublished, deleted and
+     * out-of-window documents are left out, and with $menuOnly so are the
+     * ones marked "hide from menu".
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function children(int $parent, bool $menuOnly = false): array
+    {
+        $rows = $this->db->fetchAll(
+            'SELECT * FROM ' . $this->table('site_content')
+            . ' WHERE parent = ? AND published = 1 AND deleted = 0'
+            . ($menuOnly ? ' AND hidemenu = 0' : '')
+            . ' ORDER BY menuindex, id',
+            Enum::FETCH_ASSOC,
+            [$parent],
+        );
+
+        $now = time();
+
+        return array_values(array_filter($rows, static function (array $row) use ($now): bool {
+            $from = (int) ($row['pub_date'] ?? 0);
+            $until = (int) ($row['unpub_date'] ?? 0);
+
+            return ($from === 0 || $from <= $now) && ($until === 0 || $until > $now);
+        }));
+    }
+
+    /**
+     * The ids above a document, its parent first, up to the top level: for
+     * breadcrumbs and for marking the active menu section.
+     *
+     * @return list<int>
+     */
+    public function ancestors(int $id): array
+    {
+        $ids = [];
+        $parent = $this->parentOf($id);
+
+        // A cycle in damaged data must not hang the page.
+        while ($parent > 0 && !in_array($parent, $ids, true) && count($ids) < 50) {
+            $ids[] = $parent;
+            $parent = $this->parentOf($parent);
+        }
+
+        return $ids;
+    }
+
+    private function parentOf(int $id): int
+    {
+        $row = $this->db->fetchOne(
+            'SELECT parent FROM ' . $this->table('site_content') . ' WHERE id = ?',
+            Enum::FETCH_ASSOC,
+            [$id],
+        );
+
+        return $row ? (int) $row['parent'] : 0;
     }
 
     /**

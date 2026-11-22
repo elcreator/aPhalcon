@@ -32,3 +32,29 @@ test('resolve() answers a service by name, or the container with no name', funct
     expect($extension->resolve())->toBe($di);
     expect($resolved)->toBe(2);
 });
+
+test('the links and evo filters go through the DI cms, as markup, each off for an empty name', function (): void {
+    $di = new Di();
+    $di->setShared('cms', fn () => new class {
+        public function links(string $html): string
+        {
+            return str_replace('[~2~]', '/about', $html);
+        }
+
+        public function parse(string $html): string
+        {
+            return str_replace('{{year}}', '2026', $html);
+        }
+    });
+
+    $extension = new PhalconExtension(static fn () => $di);
+    expect(array_keys($extension->getFilters()))->toBe(['links', 'evo']);
+
+    $html = $extension->links('<a href="[~2~]">About</a>');
+    expect($html)->toBeInstanceOf(Latte\Runtime\Html::class);
+    expect((string) $html)->toBe('<a href="/about">About</a>');
+    expect((string) $extension->parse('<p>{{year}}</p>'))->toBe('<p>2026</p>');
+
+    expect(array_keys((new PhalconExtension(static fn () => $di, 'phalcon', '', 'cms'))->getFilters()))->toBe(['cms']);
+    expect((new PhalconExtension(static fn () => $di, 'phalcon', '', ''))->getFilters())->toBe([]);
+});

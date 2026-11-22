@@ -46,6 +46,7 @@ class aPhalconServiceProvider extends ServiceProvider
                     $di->get($dbService),
                     DbConfig::prefix($this->connection()),
                     fn (string $name, mixed $default = null) => $cms->setting($name, $default),
+                    fn (string $value, string $name, int $documentId): mixed => $this->bindTv($value, $name, $documentId),
                 ),
                 $cms,
                 (bool) $app['config']->get('aphalcon.frontend.fallback', true),
@@ -135,14 +136,16 @@ class aPhalconServiceProvider extends ServiceProvider
     private function registerLatteFunction(): void
     {
         $name = (string) config('aphalcon.latte.function', 'phalcon');
+        $links = (string) config('aphalcon.latte.links_filter', 'links');
+        $parse = (string) config('aphalcon.latte.parse_filter', 'evo');
 
-        if ($name === '' || !class_exists(LattexEngine::class) || !method_exists(LattexEngine::class, 'addExtension')) {
+        if (($name === '' && $links === '' && $parse === '') || !class_exists(LattexEngine::class) || !method_exists(LattexEngine::class, 'addExtension')) {
             return;
         }
 
         $app = $this->app;
-        $attach = static function (LattexEngine $engine) use ($app, $name): void {
-            $engine->addExtension(new PhalconExtension(static fn () => $app->make(DiInterface::class), $name));
+        $attach = static function (LattexEngine $engine) use ($app, $name, $links, $parse): void {
+            $engine->addExtension(new PhalconExtension(static fn () => $app->make(DiInterface::class), $name, $links, $parse));
         };
 
         if ($this->app->resolved(LattexEngine::class)) {
@@ -164,6 +167,31 @@ class aPhalconServiceProvider extends ServiceProvider
             DemoInstallCommand::class,
             DemoRemoveCommand::class,
         ]);
+    }
+
+    /**
+     * Evaluate a TV's @ binding with the core's own ProcessTVCommand(), the
+     * function the parser calls when it outputs a TV: the same bindings, the
+     * same enable_bindings setting, the same guards. A recordset (@SELECT)
+     * becomes the core's "a==b||c==d" text, as the parser hands it on.
+     */
+    private function bindTv(string $value, string $name, int $documentId): mixed
+    {
+        if (!function_exists('ProcessTVCommand') && defined('EVO_CORE_PATH') && is_file(EVO_CORE_PATH . 'functions/tv.php')) {
+            require_once EVO_CORE_PATH . 'functions/tv.php';
+        }
+        if (!function_exists('ProcessTVCommand')) {
+            return $value;
+        }
+
+        $this->core();
+        $output = ProcessTVCommand($value, $name, (string) $documentId);
+
+        if ($output === null || is_scalar($output) || is_array($output)) {
+            return $output ?? '';
+        }
+
+        return function_exists('parseInput') ? parseInput($output) : '';
     }
 
     /** @return array<string, mixed> the Laravel connection the DI's 'db' is opened from */

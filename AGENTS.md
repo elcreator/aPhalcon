@@ -164,6 +164,8 @@ container, so the unit tests construct it without a CMS.
 | Add a config key | `config/aphalcon.php`, then wherever it is read; document it in README |
 | Change the demo | `src/Demo/*`, `demo/views/*`, `demo/config/*`; `DemoTest` pins the output |
 | Change how a path finds a document, or what a page gets as variables | `Frontend/Documents.php` (`resolve()`, `tvs()`), `Frontend/Frontend.php` (`render()`); `FrontendTest` |
+| Change how TV @ bindings are evaluated | `aPhalconServiceProvider::bindTv()` (the core's `ProcessTVCommand()`), `Documents::values()` |
+| Change what the core sees as the current page | `Cms::enter()`, called from `Frontend::render()` |
 
 ---
 
@@ -174,7 +176,9 @@ container, so the unit tests construct it without a CMS.
   open a connection; it is a singleton resolved on first use, and the Latte
   function and the route both ask for it lazily.
 - Do not call `evo()->parseDocumentSource()` from a handler. A Phalcon route
-  is not a document; render a view, or hand data to a template.
+  is not a document; render a view, or hand data to a template. The one
+  sanctioned parser pass is `Cms::parse()` (the `|evo` filter) over a field of
+  the document `Frontend::render()` has entered with `Cms::enter()`.
 - Do not write into a site's `core/custom/config/*.php` that already exists.
   The demo seeder writes those files only when absent and removes them only
   when byte-identical.

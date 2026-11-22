@@ -67,7 +67,11 @@ return [
         'fallback' => true,     // hand what it cannot render back to the CMS parser
     ],
 
-    'latte' => ['function' => 'phalcon'],   // the Latte function name; '' for none
+    'latte' => [
+        'function' => 'phalcon',   // the Latte function name; '' for none
+        'links_filter' => 'links', // resolves [~id~] links in rich text; '' for none
+        'parse_filter' => 'evo',   // runs the CMS parser over a field; '' for none
+    ],
 ];
 ```
 
@@ -189,15 +193,54 @@ the content table's columns and the document's TVs as plain variables:
 {block content}
     <h1>{$pagetitle}</h1>
     <p>{$description}</p>
-    {$content|noescape}
+    {$content|links}
     <a href="{phalcon('cms')->url($parent)}">up</a>
 {/block}
 ```
 
-No parser pass: `{{chunk}}`, `[[snippet]]` and `[*tv*]` are text. What a page
-needs beyond its own row it asks Phalcon for through `{phalcon()}`. Weblinks
+The template is Latte, and the CMS parser does not run over it: `{{chunk}}`,
+`[[snippet]]` and `[*tv*]` written in the template are text. What a page needs
+beyond its own row it asks Phalcon for through `{phalcon()}`. Weblinks
 redirect, unpublished and deleted documents are misses, and a miss renders the
 `error_page` document with a 404.
+
+Before the view renders, the document becomes the core's current one, as the
+parser would make it: `evo()->documentObject` (its fields, and its TVs in the
+core's `[name, value, display, display_params, type]` shape),
+`documentIdentifier` and `documentMethod`. Snippets that read the current page,
+aLatteX's `evoTv()` and the `|evo` filter work from there.
+
+A TV whose value is an `@` binding (`@INHERIT`, `@CHUNK`, `@DOCUMENT`,
+`@SELECT`, `@EVAL`, `@FILE`, `@DIRECTORY`) reaches the view evaluated, by the
+core's own `ProcessTVCommand()` - the function the parser calls when it
+outputs a TV - with the same `enable_bindings` setting and the same guards. A
+`@SELECT` recordset becomes the core's `a==b||c==d` text. Display widgets are
+not applied: a TV is a value here, its markup is the template's.
+
+Rich-text fields get two filters, both printing the field as markup:
+
+| Filter | What it resolves |
+|---|---|
+| `{$content\|links}` | `[~id~]` (what the manager's link picker writes; numeric ids only, as the parser reads them), `[(site_url)]`, `[(base_url)]` |
+| `{$content\|evo}` | everything the parser resolves: `{{chunks}}`, `[[snippets]]` and `[!snippets!]` (all run, nothing here is page-cached), `[*fields*]` and TVs of the page (bindings and display widgets included), `[(settings)]`, `[+placeholders+]`, output modifiers when `enable_filter` is on, and `[~id~]` |
+
+`|evo` costs a parser pass per field and runs the snippets editors put there,
+as the CMS would; keep it for fields where editors use CMS tags, and `|links`
+for plain rich text. In PHP: `$cms->links($html)` and `$cms->parse($html)`.
+
+Menus, sidebars and breadcrumbs come from the same repository:
+
+```latte
+{var $documents = phalcon('site')->documents()}
+<nav>
+    <a n:foreach="$documents->children(0, true) as $item" href="{phalcon('cms')->url($item['id'])}">{$item['menutitle'] ?: $item['pagetitle']}</a>
+</nav>
+{foreach array_reverse($documents->ancestors((int) $id)) as $ancestor}…{/foreach}
+```
+
+`children($parent, $menuOnly)` lists the live children in menu order (with
+`$menuOnly`, without the ones hidden from the menu); `ancestors($id)` lists the
+ids above a document, its parent first.
 
 The reads go through the DI's `db` — `Frontend\Documents` is a small
 repository over `site_content`, `site_templates` and the TV tables — so the

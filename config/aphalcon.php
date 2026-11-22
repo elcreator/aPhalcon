@@ -62,5 +62,15 @@ return [
         // {phalcon('service')} or {phalcon()} for the container itself.
         // '' registers none.
         'function' => 'phalcon',
+
+        // Name of the Latte filter that resolves the CMS's link tags in a
+        // rich-text field: {$content|links}. '' registers none.
+        'links_filter' => 'links',
+
+        // Name of the Latte filter that runs the CMS parser over a field -
+        // {{chunks}}, [[snippets]], [*fields*], [(settings)], modifiers and
+        // links - for content where editors use CMS tags: {$content|evo}.
+        // '' registers none.
+        'parse_filter' => 'evo',
     ],
 ];

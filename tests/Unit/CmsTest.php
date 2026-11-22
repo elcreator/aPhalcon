@@ -61,3 +61,26 @@ test('url(), setting() and snippet() go to the core', function (): void {
     expect($cms->snippet('rows', ['n' => 21]))->toBe(42);
     expect($evo->snippetCalls)->toBe([['rows', ['n' => 21]]]);
 });
+
+test('links() resolves the link tags the manager writes, as the parser would', function (): void {
+    [$cms] = makeCms([], ['site_url' => 'https://example.com/', 'base_url' => '/']);
+
+    expect($cms->links('<a href="[~5~]">a</a> <a href="[~7~]">b</a> <img src="[(base_url)]x.png"> [(site_url)]'))
+        ->toBe('<a href="/index.php?id=5">a</a> <a href="/index.php?id=7">b</a> <img src="/x.png"> https://example.com/');
+    // Not a link tag: left alone.
+    expect($cms->links('[~docs~] [~ 7 ~] [~[*id*]~] [(site_name)] [*content*]'))->toBe('[~docs~] [~ 7 ~] [~[*id*]~] [(site_name)] [*content*]');
+});
+
+test('enter() makes a document the current one of the core, parse() runs the parser over a field', function (): void {
+    [$cms, , $evo] = makeCms();
+
+    $cms->enter(['id' => '5', 'pagetitle' => 'Prices'], ['price' => ['price', '$12', '', '', 'text']]);
+    expect($evo->documentIdentifier)->toBe(5);
+    expect($evo->documentMethod)->toBe('id');
+    expect($evo->documentObject)->toBe(['id' => '5', 'pagetitle' => 'Prices', 'price' => ['price', '$12', '', '', 'text']]);
+
+    expect($cms->parse('<h1>[*pagetitle*]</h1> [*price*] <a href="[~5~]">x</a> [!Clock!]'))
+        ->toBe('<h1>Prices</h1> $12 <a href="/index.php?id=5">x</a> [[Clock]]');
+    // Uncached snippet tags go to the parser as cached ones: nothing here is page-cached.
+    expect($evo->parsed[0])->toContain('[[Clock]]');
+});
